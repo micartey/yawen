@@ -17,7 +17,7 @@
 
 ## :books: Introduction
 
-yawen loads GitHub releases into the Java runtime. With the use of yawen you can keep your applcation always up-to-date **without any changes** on the users computer.
+yawen loads GitHub releases into the Java runtime. With the use of yawen you can keep your application always up-to-date **without any changes** to the end user.
 
 ### How does it work?
 
@@ -27,11 +27,15 @@ This jar file will be loaded into an `UrlClassLoader` and thereby loaded into th
 
 ## :ballot_box: Usage
 
+First of all, you need to create a new `YawenRepository` object by instanciating it with the GitHub user and repository name: **Username/Repository**
+
 ```java
 YawenRepository repository = new YawenRepository("Username/Repository");
 ```
 
 ### Load by asset name
+
+You can specefy the asset name to selcect a specific asset.
 
 ```java
 repository.load("my-release.jar").ifPresent(classLoader -> {
@@ -41,6 +45,8 @@ repository.load("my-release.jar").ifPresent(classLoader -> {
 ```
 
 ### Load any asset
+
+In case you don't specify the asset name, yawen will load the first usable asset.
 
 ```java
 repository.load().ifPresent(classLoader -> {
