@@ -35,7 +35,7 @@ YawenRepository repository = new YawenRepository("Username/Repository");
 
 ### Load by asset name
 
-You can specefy the asset name to selcect a specific asset.
+You can specify the asset name to selcect a specific asset.
 
 ```java
 repository.load("my-release.jar").ifPresent(classLoader -> {
