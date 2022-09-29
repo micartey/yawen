@@ -7,13 +7,13 @@
       height="30"
     />
   </a>
-  <a href="https://jitpack.io/#Clientastisch/yawen/master-SNAPSHOT">
+  <a href="https://jitpack.io/#micartey/yawen/master-SNAPSHOT">
     <img
       src="https://img.shields.io/badge/jitpack-master-%2321f21?style=for-the-badge"
       height="30"
     />
   </a>
-  <a href="https://clientastisch.github.io/yawen/docs" target="_blank">
+  <a href="https://micartey.github.io/yawen/docs" target="_blank">
     <img
       src="https://img.shields.io/badge/javadoc-reference-5272B4.svg?style=for-the-badge"
       height="30"
