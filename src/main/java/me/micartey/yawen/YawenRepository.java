@@ -133,7 +133,7 @@ public class YawenRepository {
 
             // Logging might be unwanted - but will be added for debugging purposes
             if (update) {
-                System.out.println("[yawen] Updated cache!")
+                System.out.println("[yawen] Updated cache!");
             }
 
             this.loadDependency(new File(".yawen/" + info.id + ".jar")).onSuccess(classLoader -> {
