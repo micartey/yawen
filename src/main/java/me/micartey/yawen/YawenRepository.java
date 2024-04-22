@@ -2,11 +2,16 @@ package me.micartey.yawen;
 
 import com.google.gson.Gson;
 import io.vavr.control.Try;
+import lombok.Setter;
 import me.micartey.yawen.json.LatestRelease;
 
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.nio.channels.Channels;
+import java.nio.channels.ReadableByteChannel;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -16,7 +21,7 @@ public class YawenRepository {
     private final Gson   gson;
 
     /**
-     * Initialise YawenRepository with a github repository.
+     * Initialise YawenRepository with a GitHub repository.
      * <strong>Username/Repository</strong>
      *
      * @param repository GitHub repository
@@ -93,6 +98,48 @@ public class YawenRepository {
     }
 
     /**
+     * Load an asset by name from the latest release but cache it and update if needed
+     *
+     * @param name Name of jar file
+     * @return Optional of {@link ClassLoader}
+     */
+    public Optional<ClassLoader> loadCached(String name) {
+        AtomicReference<Optional<ClassLoader>> reference = new AtomicReference<>(Optional.empty());
+
+        this.getLatestRelease().flatMap(release -> Arrays.stream(release.assetInfos)
+                .filter(info -> info.name.equals(name))
+                .filter(info -> info.state.equals("uploaded"))
+                .filter(info -> info.name.endsWith(".jar")).findFirst()).ifPresent(info -> {
+
+            Try.ofCallable(() -> {
+                File parent = new File(".cache");
+                parent.mkdir();
+
+                if(new File(parent, info.id + ".jar").exists())
+                    return false;
+
+                // Remove untracked files - we don't need them anymore I guess?
+                Arrays.stream(parent.listFiles()).forEach(File::delete);
+
+                URL website = new URL(info.browserDownloadUrl);
+                ReadableByteChannel byteChannel = Channels.newChannel(website.openStream());
+
+                try(FileOutputStream stream = new FileOutputStream(".cache/" + info.id + ".jar")) {
+                    stream.getChannel().transferFrom(byteChannel, 0, Long.MAX_VALUE);
+                }
+
+                return true;
+            }).get();
+
+            this.loadDependency(new File(".cache/" + info.id + ".jar")).onSuccess(classLoader -> {
+                reference.set(Optional.of(classLoader));
+            });
+        });
+
+        return reference.get();
+    }
+
+    /**
      * Load an asset from the latest release
      *
      * @return Optional of {@link ClassLoader}
@@ -105,10 +152,16 @@ public class YawenRepository {
         }
         return Optional.empty();
     }
-    
+
     private Try<ClassLoader> loadDependency(String url) {
         return Try.ofCallable(() -> new URLClassLoader(new URL[]{
                 new URL(url)
+        }, YawenRepository.class.getClassLoader()));
+    }
+
+    private Try<ClassLoader> loadDependency(File file) {
+        return Try.ofCallable(() -> new URLClassLoader(new URL[]{
+                file.toURI().toURL()
         }, YawenRepository.class.getClassLoader()));
     }
 }
