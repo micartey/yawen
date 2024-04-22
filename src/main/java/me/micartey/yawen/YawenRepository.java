@@ -111,8 +111,8 @@ public class YawenRepository {
                 .filter(info -> info.state.equals("uploaded"))
                 .filter(info -> info.name.endsWith(".jar")).findFirst()).ifPresent(info -> {
 
-            Try.ofCallable(() -> {
-                File parent = new File(".cache");
+            boolean update = Try.ofCallable(() -> {
+                File parent = new File(".yawen");
                 parent.mkdir();
 
                 if(new File(parent, info.id + ".jar").exists())
@@ -124,14 +124,19 @@ public class YawenRepository {
                 URL website = new URL(info.browserDownloadUrl);
                 ReadableByteChannel byteChannel = Channels.newChannel(website.openStream());
 
-                try(FileOutputStream stream = new FileOutputStream(".cache/" + info.id + ".jar")) {
+                try (FileOutputStream stream = new FileOutputStream(".yawen/" + info.id + ".jar")) {
                     stream.getChannel().transferFrom(byteChannel, 0, Long.MAX_VALUE);
                 }
 
                 return true;
             }).get();
 
-            this.loadDependency(new File(".cache/" + info.id + ".jar")).onSuccess(classLoader -> {
+            // Logging might be unwanted - but will be added for debugging purposes
+            if (update) {
+                System.out.println("[yawen] Updated cache!")
+            }
+
+            this.loadDependency(new File(".yawen/" + info.id + ".jar")).onSuccess(classLoader -> {
                 reference.set(Optional.of(classLoader));
             });
         });
