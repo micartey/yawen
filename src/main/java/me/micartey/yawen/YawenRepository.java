@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import io.vavr.control.Try;
 import me.micartey.yawen.json.LatestRelease;
 
+import java.io.InputStream;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.*;
@@ -32,7 +33,15 @@ public class YawenRepository {
      * @return Try of {@link String}
      */
     private Try<String> getWebsiteContent(String url) {
-        return Try.ofCallable(() -> new Scanner(new URL(url).openStream(), "UTF-8").next());
+        return Try.ofCallable(() -> {
+            Scanner sc = new Scanner(new URL(url).openStream());
+
+            StringBuilder buffer = new StringBuilder();
+            while(sc.hasNext())
+                buffer.append(sc.next());
+
+            return buffer.toString();
+        });
     }
 
     /**
