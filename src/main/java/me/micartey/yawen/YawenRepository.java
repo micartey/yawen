@@ -2,18 +2,17 @@ package me.micartey.yawen;
 
 import com.google.gson.Gson;
 import io.vavr.control.Try;
-import lombok.Setter;
-import me.micartey.yawen.json.LatestRelease;
+import me.micartey.yawen.json.Asset;
+import me.micartey.yawen.json.Release;
 
 import java.io.File;
 import java.io.FileOutputStream;
-import java.io.InputStream;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 public class YawenRepository {
 
@@ -27,7 +26,7 @@ public class YawenRepository {
      * @param repository GitHub repository
      */
     public YawenRepository(String repository) {
-        this.apiUrl = String.format("https://api.github.com/repos/%s/releases/latest", repository);
+        this.apiUrl = String.format("https://api.github.com/repos/%s/releases", repository);
         this.gson = new Gson();
     }
 
@@ -50,15 +49,27 @@ public class YawenRepository {
     }
 
     /**
-     * Get the {@link LatestRelease latest release} in case a release is present
+     * Get the {@link Release latest release} in case a release is present
      *
-     * @return Optional of {@link LatestRelease LatestRelease}
+     * @return Optional of {@link Release LatestRelease}
      * @see YawenRepository#getWebsiteContent(String)
      */
-    public Optional<LatestRelease> getLatestRelease() {
-        return this.getWebsiteContent(this.apiUrl)
-                .mapTry(content -> Optional.of(this.gson.fromJson(content, LatestRelease.class)))
+    public Optional<Release> getLatestRelease() {
+        return this.getWebsiteContent(this.apiUrl + "/latest")
+                .mapTry(content -> Optional.of(this.gson.fromJson(content, Release.class)))
                 .getOrElse(Optional.empty());
+    }
+
+    /**
+     * Get all {@link Release releases} to filter through
+     *
+     * @return Set of releases
+     * @see YawenRepository#getWebsiteContent(String)
+     */
+    public Set<Release> getReleases() {
+        return this.getWebsiteContent(this.apiUrl)
+                .mapTry(content -> Arrays.stream(this.gson.fromJson(content, Release[].class)).collect(Collectors.toSet()))
+                .getOrElse(Collections.emptySet());
     }
 
     /**
@@ -66,93 +77,68 @@ public class YawenRepository {
      *
      * @return Set of {@link String}
      */
-    public Set<String> getAssetNames() {
-        List<String> names = new ArrayList<>();
-        this.getLatestRelease().ifPresent(release -> Arrays.stream(release.assetInfos)
-                .filter(info -> info.name.endsWith(".jar"))
-                .forEach(info -> {
-                    names.add(info.name);
-                }));
-        return new HashSet<>(names);
+    public Set<String> getAssetNames(Release release) {
+        return Arrays.stream(release.assets).filter(info -> info.name.endsWith(".jar"))
+                .map(Asset::getName)
+                .collect(Collectors.toSet());
     }
 
     /**
-     * Load an asset by name from the latest release
+     * Load an asset
      *
-     * @param name Name of jar file
+     * @param asset Asset
      * @return Optional of {@link ClassLoader}
      */
-    public Optional<ClassLoader> load(String name) {
-        AtomicReference<Optional<ClassLoader>> reference = new AtomicReference<>(Optional.empty());
-
-        this.getLatestRelease().flatMap(release -> Arrays.stream(release.assetInfos)
-                .filter(info -> info.name.equals(name))
-                .filter(info -> info.state.equals("uploaded"))
-                .filter(info -> info.name.endsWith(".jar")).findFirst()).ifPresent(info -> {
-            this.loadDependency(info.browserDownloadUrl).onSuccess(classLoader -> {
-                reference.set(Optional.of(classLoader));
-            });
-        });
-
-        return reference.get();
+    public Optional<ClassLoader> load(Asset asset) {
+        return this.loadDependency(asset.browserDownloadUrl).toJavaOptional();
     }
 
     /**
-     * Load an asset by name from the latest release but cache it and update if needed
+     * Load an asset and cache it
      *
-     * @param name Name of jar file
+     * @param asset Asset
      * @return Optional of {@link ClassLoader}
      */
-    public Optional<ClassLoader> loadCached(String name) {
-        AtomicReference<Optional<ClassLoader>> reference = new AtomicReference<>(Optional.empty());
+    public Optional<ClassLoader> loadCached(Asset asset) {
+        boolean update = Try.ofCallable(() -> {
+            File parent = new File(".yawen");
+            parent.mkdir();
 
-        this.getLatestRelease().flatMap(release -> Arrays.stream(release.assetInfos)
-                .filter(info -> info.name.equals(name))
-                .filter(info -> info.state.equals("uploaded"))
-                .filter(info -> info.name.endsWith(".jar")).findFirst()).ifPresent(info -> {
+            if (new File(parent, asset.id + ".jar").exists())
+                return false;
 
-            boolean update = Try.ofCallable(() -> {
-                File parent = new File(".yawen");
-                parent.mkdir();
+            URL website = new URL(asset.browserDownloadUrl);
+            ReadableByteChannel byteChannel = Channels.newChannel(website.openStream());
 
-                if (new File(parent, info.id + ".jar").exists())
-                    return false;
-
-                URL website = new URL(info.browserDownloadUrl);
-                ReadableByteChannel byteChannel = Channels.newChannel(website.openStream());
-
-                try (FileOutputStream stream = new FileOutputStream(".yawen/" + info.id + ".jar")) {
-                    stream.getChannel().transferFrom(byteChannel, 0, Long.MAX_VALUE);
-                }
-
-                return true;
-            }).get();
-
-            // Logging might be unwanted - but will be added for debugging purposes
-            if (update) {
-                System.out.println("[yawen] Updated cache!");
+            try (FileOutputStream stream = new FileOutputStream(".yawen/" + asset.id + ".jar")) {
+                stream.getChannel().transferFrom(byteChannel, 0, Long.MAX_VALUE);
             }
 
-            this.loadDependency(new File(".yawen/" + info.id + ".jar")).onSuccess(classLoader -> {
-                reference.set(Optional.of(classLoader));
-            });
-        });
+            return true;
+        }).get();
 
-        return reference.get();
+        // Logging might be unwanted - but will be added for debugging purposes
+        if (update) {
+            System.out.println("[yawen] Updated cache!");
+        }
+
+        return this.loadDependency(new File(".yawen/" + asset.id + ".jar")).toJavaOptional();
     }
 
     /**
      * Load an asset from the latest release
      *
      * @return Optional of {@link ClassLoader}
-     * @see YawenRepository#load(String)
+     * @see YawenRepository#load(Asset)
      */
     public Optional<ClassLoader> load() {
-        for(String asset : this.getAssetNames()) {
-            Optional<ClassLoader> classLoader = this.load(asset);
-            if(classLoader.isPresent()) return classLoader;
-        }
-        return Optional.empty();
+        Release latest = this.getLatestRelease()
+                .orElseThrow(() -> new RuntimeException("No release found"));
+
+        Asset asset = Arrays.stream(latest.assets).findFirst()
+                .orElseThrow(() -> new RuntimeException("Latest release has no assets"));
+
+        return this.load(asset);
     }
 
     private Try<ClassLoader> loadDependency(String url) {
