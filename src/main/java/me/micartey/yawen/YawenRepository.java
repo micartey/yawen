@@ -115,11 +115,8 @@ public class YawenRepository {
                 File parent = new File(".yawen");
                 parent.mkdir();
 
-                if(new File(parent, info.id + ".jar").exists())
+                if (new File(parent, info.id + ".jar").exists())
                     return false;
-
-                // Remove untracked files - we don't need them anymore I guess?
-                Arrays.stream(parent.listFiles()).forEach(File::delete);
 
                 URL website = new URL(info.browserDownloadUrl);
                 ReadableByteChannel byteChannel = Channels.newChannel(website.openStream());
