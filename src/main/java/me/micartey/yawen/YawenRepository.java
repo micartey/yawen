@@ -90,7 +90,12 @@ public class YawenRepository {
      * @return Optional of {@link ClassLoader}
      */
     public Optional<ClassLoader> load(Asset asset) {
-        return this.loadDependency(asset.browserDownloadUrl).toJavaOptional();
+        if (!asset.name.endsWith(".jar"))
+            throw new RuntimeException("Asset is not a jar file!");
+
+        return this.loadDependency(
+                Try.ofCallable(() -> new URL(asset.browserDownloadUrl)).get()
+        ).toJavaOptional();
     }
 
     /**
@@ -100,6 +105,9 @@ public class YawenRepository {
      * @return Optional of {@link ClassLoader}
      */
     public Optional<ClassLoader> loadCached(Asset asset) {
+        if (!asset.name.endsWith(".jar"))
+            throw new RuntimeException("Asset is not a jar file!");
+
         boolean update = Try.ofCallable(() -> {
             File parent = new File(".yawen");
             parent.mkdir();
@@ -122,7 +130,9 @@ public class YawenRepository {
             System.out.println("[yawen] Updated cache!");
         }
 
-        return this.loadDependency(new File(".yawen/" + asset.id + ".jar")).toJavaOptional();
+        return this.loadDependency(
+                Try.ofCallable(() -> new File(".yawen/" + asset.id + ".jar").toURI().toURL()).get()
+        ).toJavaOptional();
     }
 
     /**
@@ -141,15 +151,9 @@ public class YawenRepository {
         return this.load(asset);
     }
 
-    private Try<ClassLoader> loadDependency(String url) {
+    private Try<ClassLoader> loadDependency(URL url) {
         return Try.ofCallable(() -> new URLClassLoader(new URL[]{
-                new URL(url)
-        }, YawenRepository.class.getClassLoader()));
-    }
-
-    private Try<ClassLoader> loadDependency(File file) {
-        return Try.ofCallable(() -> new URLClassLoader(new URL[]{
-                file.toURI().toURL()
+                url
         }, YawenRepository.class.getClassLoader()));
     }
 }

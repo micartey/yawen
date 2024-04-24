@@ -27,9 +27,9 @@ yawen loads GitHub releases into the Java runtime. With the use of yawen you can
 
 ### How does it work?
 
-yawen uses the GitHub-Api to identify the latest release and all of its assets.
-**It is important that the release contains a compiled .jar file which also contains any dependencies it may uses**.
-This jar file will be loaded into an `UrlClassLoader` and thereby loaded into the Java runtime.
+yawen uses the GitHub-Api to get the releases and all of its assets.
+An asset can be loaded through an URLClassLoader and thus contains all classes from that jar.
+Only assets that are jar files can be loaded.
 
 ## :ballot_box: Usage
 
@@ -39,24 +39,20 @@ First of all, you need to create a new `YawenRepository` object by instanciating
 YawenRepository repository = new YawenRepository("Username/Repository");
 ```
 
-### Load by asset name
-
-You can specify the asset name to selcect a specific asset.
+### Load an Asset
 
 ```java
-repository.load("my-release.jar").ifPresent(classLoader -> {
-    Class fromRelease = classLoader.loadClass("my.example.project.Class");
-    ...
+Optional<Release> optRelease = repository.getLatestRelease();
+
+optRelease.ifPresent(release -> {
+    Asset asset = Arrays.stream(release.getAssets()).filter(asset -> asset.name.equals("dependency.jar"))
+            .findFirst()
+            .orElseThrow(() -> new RuntimeException("No asset found"));
+    
+    repository.load(asset).ifPresent(classLoader -> {
+        Class fromRelease = classLoader.loadClass("my.example.project.Class");
+        // ...
+    });
 });
-```
 
-### Load any asset
-
-In case you don't specify the asset name, yawen will load the first usable asset.
-
-```java
-repository.load().ifPresent(classLoader -> {
-    Class fromRelease = classLoader.loadClass("my.example.project.Class");
-    ...
-});
 ```
